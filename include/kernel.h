@@ -27,6 +27,7 @@ typedef	uint16	intmask;	/* saved interrupt mask			*/
 typedef	int32	ibid32;		/* index block ID (used in file system)	*/
 typedef	int32	dbid32;		/* data block ID (used in file system)	*/
 typedef	uint32	mutex_t;	/* define mutex_t as 32-bit unsigned int */
+typedef int32 	lid32;		/* lockid data type */
 
 /* Function declaration return types */
 

@@ -3,7 +3,7 @@
 /* Maximum number of processes in the system */
 
 #ifndef NPROC
-#define	NPROC		100
+#define	NPROC		20
 #endif
 
 /* Process state constants */

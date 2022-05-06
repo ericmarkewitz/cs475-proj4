@@ -19,6 +19,7 @@ static	void sysinit(void);	/* initializes system structures	*/
 struct	procent	proctab[NPROC];	/* Process table			*/
 struct	sentry	semtab[NSEM];	/* Semaphore table			*/
 struct	memblk	memlist;	/* List of free memory blocks		*/
+struct 	lockentry locktab[NLOCK]; /* Stores all our locks */
 
 /* Active system status */
 
@@ -174,6 +175,20 @@ static	void	sysinit(void)
 		semptr->sstate = S_FREE;
 		semptr->scount = 0;
 		semptr->squeue = newqueue();
+	}
+
+	/* Initialize Lock Table */
+	for(i=0; i<NLOCK;i++){
+		struct lockentry currLock = locktab[i];
+		currLock.state=LOCK_FREE;
+		currLock.lock=FALSE;
+
+		struct queue *waitQ;
+		waitQ->head=NULL;
+		waitQ->tail=NULL;
+		waitQ->size=0;
+
+		currLock.wait_queue = waitQ;
 	}
 
 	/* Initialize buffer pools */
