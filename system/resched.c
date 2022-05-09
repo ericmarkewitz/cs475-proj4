@@ -12,6 +12,22 @@ void	resched(void)		// assumes interrupts are disabled
 	struct procent *ptold;	// ptr to table entry for old process
 	struct procent *ptnew;	// ptr to table entry for new process
 
+	//CHECK FOR A DEADLOCK every 50 times
+	numResched++;
+	//kprintf("numResched: %d\n", numResched);
+	if(numResched == 50){
+		intmask mask = disable(); //disable interrupts
+		
+		deadlock_detect();
+		numResched = 0;
+		//other code with interrupt disabled
+		
+		restore(mask); //reenable interrupts
+		//DONE CHECKING FOR DEADLOCK
+	}
+	
+
+
 	// If rescheduling is deferred, record attempt and return
 	if (Defer.ndefers > 0) {
 		Defer.attempt = TRUE;

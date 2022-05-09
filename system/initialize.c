@@ -21,6 +21,9 @@ struct	sentry	semtab[NSEM];	/* Semaphore table			*/
 struct	memblk	memlist;	/* List of free memory blocks		*/
 struct 	lockentry locktab[NLOCK]; /* Stores all our locks */
 
+int RAG[NLOCK+NPROC][NLOCK+NPROC];
+int numResched;
+
 /* Active system status */
 
 int	prcount;		/* Total number of live processes	*/
@@ -114,6 +117,17 @@ static	void	sysinit(void)
 	initevec();
 
 	/* Initialize system variables */
+	//CREATE RAG
+	int l,j;
+    for(l=0;l<NPROC+NLOCK; l++){
+		for(j=0; j<NPROC+NLOCK; j++){
+			RAG[l][j] = 0;
+		}
+	}
+
+	numResched =0;
+	
+
 
 	/* Count the Null process as the first process in the system */
 
