@@ -18,6 +18,7 @@ void rag_request(int pid, int lockid){
 * removes the request edge from pid to lockid
 */
 void rag_alloc(int pid, int lockid){
+    //kprintf("RAG_ALLOC- pid: %d, lockid: %d\n", pid, lockid);
     RAG[lockid][pid+NLOCK] = 1;
     RAG[pid+NLOCK][lockid] = 0;
 }
@@ -62,7 +63,6 @@ void rag_print(){
 void deadlock_detect(){
     int i,j;
     for (i=0; i<NPROC; i++){
-        //kprintf("Outside loop: %d\n", i);
         
         int visited[NPROC];
         for(j=0; j<NPROC; j++){
@@ -75,27 +75,36 @@ void deadlock_detect(){
             order[j] = -1;
         }
 
-        rag_print();
         if(deadlock_detect_Helper(i, visited, order)){
+            //Cycle if we're in here
             return;
         }
     }
-    kprintf("NO CYCLE\n");
+    //No cycle if we got here
     return;
 }
 
+/*
+* Does a deep copy of the allocation array
+*/
 void deep_copy_arr(int arr[], int copyArr[]){
     for(int i=0; i<NPROC; i++){
         copyArr[i] = arr[i];
     }
 }
 
+/*
+* Does a deep copy of the deadlock order array
+*/
 void deep_copy_order(int arr[], int copyArr[]){
     for(int i=0; i<NPROC + NLOCK; i++){
         copyArr[i] = arr[i];
     }
 }
 
+/*
+* Prints the allocation array
+*/
 void print_arr(int arr[]){
     kprintf("[");
     for(int i=0; i<NPROC; i++){
@@ -104,11 +113,14 @@ void print_arr(int arr[]){
     kprintf("]");
 }
 
+/*
+* Prints the deadlock order array
+*/
 void print_order(int arr[]){
     int i=0;
     while(arr[i] != -1){
         if((i % 2) ==0){
-            kprintf("PID: %d wants lock ", arr[i]);
+            kprintf("PID %d wants lock ", arr[i]);
         }
         else{
             kprintf("%d owned by ", arr[i]);
@@ -116,11 +128,18 @@ void print_order(int arr[]){
         
         i++;
     }
+    //kprintf("\n");
 }
 
+/*
+* Recursive helper function called by the deadlock detection function
+* Basically sees what process its in, looks at the locks its requesting
+* checks if those locks have been allocated, and if so check if we have
+* already looked at them, if not recurse on them, if we have there is a cycle
+* if we reach the end every time, there has been no cycle
+*/
 int deadlock_detect_Helper(int pid, int visited[], int order[]){
-    //printf("Inside %d\n", pid);
-   
+ 
     //Create a copy of the array and set the pid value to visited
     int visitedCopy[NPROC];
     for(int i=0; i<NPROC; i++){
@@ -136,14 +155,10 @@ int deadlock_detect_Helper(int pid, int visited[], int order[]){
     }
     deep_copy_order(order, orderCopy);
     
-    
-    //print_arr(visitedCopy);
-    //printf("\n");
 
     //Check if it's requesting any locks
     for(int i=0; i<NLOCK; i++){
         if(RAG[pid+NLOCK][i] == 1){
-            //printf("    Requests lock %d\n", i);
             
             //If this process is requesting a lock, see if another process has that lock
             for(int j=0; j<NPROC; j++){
@@ -151,39 +166,68 @@ int deadlock_detect_Helper(int pid, int visited[], int order[]){
                 //If that lock is held by another thread explore it
                 if(RAG[i][j+NLOCK] == 1){
                     visitedCopy[pid] = 1;
-                    for(int i=0; i<NPROC; i++){
-                        if(orderCopy[i] == -1){
-                            orderCopy[i] = pid;
-                            orderCopy[i+1] = j;
+                    for(int k=0; k<NPROC; k++){
+                        if(orderCopy[k] == -1){
+                            orderCopy[k] = pid;
+                            orderCopy[k+1] = i;
                             break;
                         }
                     }
 
+                    //Uh oh! We've visited this node before
                     if(visitedCopy[j] == 1){
-                        kprintf("THERE IS A CYCLE\n");
+                        kprintf("DEADLOCK DETECTED      ");
                         print_order(orderCopy);
-                        kprintf("PID: %d\n", j);
+                        kprintf("PID %d\n", j);
+                        deadlock_recover(orderCopy);
                         return 1;
                     }
                     else{
+                        //If not recurse!
                         return deadlock_detect_Helper(j, visitedCopy, orderCopy);
                     }
                 }
             }
         }
     }
-    return 0;
+    return 0; //No cycle in this process
 }
 
-void deadlock_recover(){
+void deadlock_recover(int order[]){
+    //Find first lock in the cycle (index 1 of order) & get its lockentry
+    int indexOfLock = 1;
+    int lockid = order[indexOfLock];
+    struct lockentry *wantedLock = &locktab[lockid];
 
-}
-
-/*
-void clear_rag(){
-    for(int i=0; i<NLOCK+NPROC; i++){
-        for(int j=0; j<NLOCK+NPROC; j++){
-            RAG[i][j] = 0;
+    //Kill the process that is currently holding it
+    int procId;
+    for(procId=0; procId<NPROC; procId++){
+        if(RAG[lockid][procId+NLOCK] == 1){
+            kill(procId);
+            break;
         }
     }
-}*/
+
+    //Remove the process from the wait queue of other locks
+    for(int i=0; i<NLOCK; i++){
+        struct lockentry *currLock = &locktab[i];
+        struct queue *waitQ = currLock->wait_queue;
+
+        if(getbypid(procId, waitQ) != NULL){
+            remove(procId, waitQ);
+        }
+    }
+
+    //Call mutex_unlock on lock's mutex
+    mutex_unlock(&wantedLock->lock);
+
+    //Reset RAG allocs and requests to 0 for that process
+    for(int i=0; i<NLOCK; i++){
+        RAG[i][procId+NLOCK] = 0;
+        RAG[procId+NLOCK][i] = 0;
+    }
+
+    //Let the user know what you just did
+    kprintf("DEADLOCK RECOVER       killing pid %d to release lockid %d\n", procId, lockid);
+
+}

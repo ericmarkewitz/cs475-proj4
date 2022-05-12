@@ -122,6 +122,7 @@ syscall	lock_delete(lid32 lockid)
  */
 syscall	acquire(lid32 lockid)
 {
+	//kprintf("Aquire lockid = %d\n", lockid);
 	intmask mask;			// saved interrupt mask
 	struct	lockentry *lptr;	// ptr to sempahore table entry
 
@@ -137,6 +138,7 @@ syscall	acquire(lid32 lockid)
 		return SYSERR;
 	}
 
+	//kprintf("Someone aquiring lock %d\n", lockid);//DELETE
 	//TODO START
 	//TODO - enqueue the current process ID on the lock's wait queue
 	//TODO (RAG) - add a request edge in the RAG
